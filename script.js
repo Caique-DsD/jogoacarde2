@@ -1894,7 +1894,7 @@ document.addEventListener("keyup",(e)=>{
     teclas[e.key.toLowerCase()] = false;
 });
 // CLIQUE DO MOUSE
-canvas.addEventListener("mousedown",(e)=>{
+document.addEventListener("mousedown",(e)=>{
 
     if(estado === JOGO && !bossDestruido){
 
