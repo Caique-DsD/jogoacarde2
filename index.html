@@ -1,20 +1,58 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Arcade Shooter PRO+</title>
-
     <link rel="stylesheet" href="style.css">
-
 </head>
 <body>
 
-    <canvas id="gameCanvas"></canvas>
+    <div id="canvasWrapper">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <!-- CONTROLES TOUCH (visíveis apenas em mobile) -->
+    <div id="mobileControls">
+        <div class="controls-row">
+
+            <!-- Esquerda: movimento -->
+            <div class="move-group">
+                <button class="btn-touch btn-move" id="btnLeft" aria-label="Mover Esquerda">◀</button>
+                <button class="btn-touch btn-move" id="btnRight" aria-label="Mover Direita">▶</button>
+            </div>
+
+            <!-- Centro: TIRO -->
+            <button class="btn-touch btn-fire" id="btnFire" aria-label="Atirar">
+                🔥
+                <span class="btn-label">ATIRAR</span>
+            </button>
+
+            <!-- Direita: buffs -->
+            <div class="buff-group">
+                <button class="btn-touch btn-buff btn-shield disabled" id="btnShield" aria-label="Escudo">
+                    <span class="btn-icon">🛡️</span>
+                    <span class="btn-label">ESCUDO</span>
+                </button>
+                <button class="btn-touch btn-buff btn-bomb disabled" id="btnBomb" aria-label="Bomba">
+                    <span class="btn-icon">💥</span>
+                    <span class="btn-label">BOMBA</span>
+                </button>
+                <button class="btn-touch btn-buff btn-turbo disabled" id="btnTurbo" aria-label="Turbo">
+                    <span class="btn-icon">⚡</span>
+                    <span class="btn-label">TURBO</span>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Botão START para menu no mobile -->
+    <button id="mobileStartBtn">▶ JOGAR</button>
 
     <script src="script.js"></script>
-
 </body>
 </html>

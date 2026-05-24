@@ -555,25 +555,268 @@ let fadeGameover = 0;
 const TRANS_MORTE = {
     ativo: false,
     prog: 0,           // 0→1
-    velocidade: 0.007, // 1/143 frames ≈ 2.4s
+    velocidade: 0.015, // 1/67 frames ≈ 1.1s
     naveX: 0,
     naveY: 0,
     particulasMorte: []
 };
 
-// Transição de SAÍDA (gameover→menu): duração ~2.5s
+// Transição de SAÍDA (gameover→menu): duração ~0.7s
 const TRANS_SAIDA = {
     ativo: false,
     prog: 0,
-    velocidade: 0.007
+    velocidade: 0.030
 };
 
 // Transição de CRÉDITOS→MENU (mesma mecânica)
 const TRANS_CREDITOS = {
     ativo: false,
     prog: 0,
-    velocidade: 0.007
+    velocidade: 0.030
 };
+
+// ── TRANSIÇÃO MANDÍBULAS (jaw wipe) ─────────────────────────────────────────
+// Usada em GAMEOVER→MENU e CRÉDITOS→MENU
+const TRANS_JAW = {
+    ativo: false,
+    fase: 0,        // 0=fechando, 1=abrindo
+    prog: 0,        // 0→1
+    velFechar: 0.058,
+    velAbrir: 0.052,
+    callback: null  // função chamada quando as mandíbulas estão fechadas
+};
+
+function iniciarTransicaoJaw(callback) {
+    TRANS_JAW.ativo = true;
+    TRANS_JAW.fase = 0;
+    TRANS_JAW.prog = 0;
+    TRANS_JAW.callback = callback;
+}
+
+function atualizarTransicaoJaw() {
+    if (!TRANS_JAW.ativo) return;
+    if (TRANS_JAW.fase === 0) {
+        TRANS_JAW.prog += TRANS_JAW.velFechar;
+        if (TRANS_JAW.prog >= 1) {
+            TRANS_JAW.prog = 1;
+            // mandíbulas fechadas: executa callback (troca de tela) e inicia abertura
+            if (TRANS_JAW.callback) { TRANS_JAW.callback(); TRANS_JAW.callback = null; }
+            TRANS_JAW.fase = 1;
+            TRANS_JAW.prog = 0;
+        }
+    } else {
+        TRANS_JAW.prog += TRANS_JAW.velAbrir;
+        if (TRANS_JAW.prog >= 1) {
+            TRANS_JAW.prog = 1;
+            TRANS_JAW.ativo = false;
+        }
+    }
+}
+
+// easing suave (ease in-out cubic)
+function easeInOutCubic(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2; }
+// ease out quint (suave na chegada)
+function easeOutQuint(t) { return 1 - Math.pow(1 - t, 5); }
+// ease in quint (acelera ao fechar)
+function easeInQuint(t) { return t * t * t * t * t; }
+
+function desenharTransicaoJaw() {
+    if (!TRANS_JAW.ativo) return;
+
+    const isFechar = TRANS_JAW.fase === 0;
+    const numDentes = 11;
+    const altDente = 52;
+    const largDente = LARGURA / numDentes;
+
+    const rawP = TRANS_JAW.prog;
+    // fechando: easeInQuint para impacto dramático; abrindo: easeOutQuint suave
+    const p = isFechar ? easeInQuint(rawP) : easeOutQuint(rawP);
+
+    let topoY, baixoY;
+    if (isFechar) {
+        topoY  = -altDente + (ALTURA / 2 + altDente) * p;
+        baixoY = ALTURA    - (ALTURA / 2 + altDente) * p;
+    } else {
+        topoY  = ALTURA/2 - (ALTURA/2 + altDente) * p;
+        baixoY = ALTURA/2 + (ALTURA/2 + altDente) * p;
+    }
+
+    ctx.save();
+
+    // ── MANDÍBULA SUPERIOR — completamente preta ──────────────────────────
+    ctx.beginPath();
+    ctx.moveTo(0, topoY);
+    for (let i = 0; i < numDentes; i++) {
+        const x0 = i * largDente;
+        const x1 = (i + 0.5) * largDente;
+        const x2 = (i + 1) * largDente;
+        ctx.lineTo(x0, topoY);
+        ctx.lineTo(x1, topoY + altDente);
+        ctx.lineTo(x2, topoY);
+    }
+    ctx.lineTo(LARGURA, topoY);
+    ctx.lineTo(LARGURA, topoY - ALTURA - 10);
+    ctx.lineTo(0, topoY - ALTURA - 10);
+    ctx.closePath();
+    ctx.fillStyle = "#000000";
+    ctx.fill();
+
+    // borda cyan brilhante nos dentes superiores
+    ctx.beginPath();
+    for (let i = 0; i < numDentes; i++) {
+        const x0 = i * largDente;
+        const x1 = (i + 0.5) * largDente;
+        const x2 = (i + 1) * largDente;
+        if (i === 0) ctx.moveTo(x0, topoY);
+        else ctx.lineTo(x0, topoY);
+        ctx.lineTo(x1, topoY + altDente);
+        ctx.lineTo(x2, topoY);
+    }
+    ctx.strokeStyle = "#00bfff";
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = "#00bfff";
+    ctx.shadowBlur = 22;
+    ctx.stroke();
+
+    // ── MANDÍBULA INFERIOR — completamente preta ──────────────────────────
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.moveTo(0, baixoY);
+    for (let i = 0; i < numDentes; i++) {
+        const x0 = i * largDente;
+        const x1 = (i + 0.5) * largDente;
+        const x2 = (i + 1) * largDente;
+        ctx.lineTo(x0, baixoY);
+        ctx.lineTo(x1, baixoY - altDente);
+        ctx.lineTo(x2, baixoY);
+    }
+    ctx.lineTo(LARGURA, baixoY);
+    ctx.lineTo(LARGURA, baixoY + ALTURA + 10);
+    ctx.lineTo(0, baixoY + ALTURA + 10);
+    ctx.closePath();
+    ctx.fillStyle = "#000000";
+    ctx.fill();
+
+    // borda cyan brilhante nos dentes inferiores
+    ctx.beginPath();
+    for (let i = 0; i < numDentes; i++) {
+        const x0 = i * largDente;
+        const x1 = (i + 0.5) * largDente;
+        const x2 = (i + 1) * largDente;
+        if (i === 0) ctx.moveTo(x0, baixoY);
+        else ctx.lineTo(x0, baixoY);
+        ctx.lineTo(x1, baixoY - altDente);
+        ctx.lineTo(x2, baixoY);
+    }
+    ctx.strokeStyle = "#00bfff";
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = "#00bfff";
+    ctx.shadowBlur = 22;
+    ctx.stroke();
+
+    // Flash branco puro no momento do fechamento total
+    if (isFechar && rawP > 0.82) {
+        const glow = Math.pow((rawP - 0.82) / 0.18, 2);
+        ctx.globalAlpha = glow * 0.7;
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, LARGURA, ALTURA);
+        ctx.globalAlpha = 1;
+    }
+
+    ctx.restore();
+}
+
+// ── ANIMAÇÃO DE LIMPEZA PÓS-BOSS (evaporação dos meteoros) ──────────────────
+const BOSS_CLEANUP = {
+    ativo: false,
+    meteorosEvap: [],    // {ast, delay, prog}
+    duracao: 80,         // frames por meteoro (em cascata)
+    timer: 0
+};
+
+function iniciarBossCleanup() {
+    BOSS_CLEANUP.ativo = true;
+    BOSS_CLEANUP.timer = 0;
+    // cria lista de meteoros restantes com delays escalonados
+    BOSS_CLEANUP.meteorosEvap = asteroides
+        .filter(a => a._isBossChild)
+        .map((ast, i) => ({
+            ast,
+            delay: i * 6 + Math.floor(Math.random() * 10),
+            prog: 0,
+            ativo: false
+        }));
+}
+
+function atualizarBossCleanup() {
+    if (!BOSS_CLEANUP.ativo) return;
+    BOSS_CLEANUP.timer++;
+
+    let algumAtivo = false;
+    BOSS_CLEANUP.meteorosEvap.forEach(item => {
+        if (BOSS_CLEANUP.timer >= item.delay) {
+            item.ativo = true;
+            item.prog += 0.04;
+            if (item.prog < 1) algumAtivo = true;
+        }
+    });
+
+    // Remove meteoros evaporados do array principal
+    BOSS_CLEANUP.meteorosEvap.forEach(item => {
+        if (item.prog >= 1) {
+            const idx = asteroides.indexOf(item.ast);
+            if (idx !== -1) asteroides.splice(idx, 1);
+        }
+    });
+    BOSS_CLEANUP.meteorosEvap = BOSS_CLEANUP.meteorosEvap.filter(item => item.prog < 1);
+
+    if (!algumAtivo && BOSS_CLEANUP.timer > 10) {
+        BOSS_CLEANUP.ativo = false;
+    }
+}
+
+function desenharEvaporacaoMeteoros() {
+    BOSS_CLEANUP.meteorosEvap.forEach(item => {
+        if (!item.ativo || item.prog <= 0) return;
+        const ast = item.ast;
+        const p = Math.min(1, item.prog);
+
+        // explosão/evaporação: expande e desvanece como os meteoros comuns
+        ctx.save();
+        ctx.globalAlpha = 1 - p;
+        ctx.translate(ast.x + ast.tamanho/2, ast.y + ast.tamanho/2);
+        ctx.rotate(ast.rotacao);
+        const scale = 1 + p * 1.2;
+        ctx.scale(scale, scale);
+        ctx.shadowColor = "#ff4400";
+        ctx.shadowBlur = 20 * (1 - p);
+        ctx.drawImage(asteroideImg, -ast.tamanho/2, -ast.tamanho/2, ast.tamanho, ast.tamanho);
+        ctx.restore();
+
+        // anel de explosão (mesmo visual de Explosao)
+        const raioExp = 10 + p * ast.tamanho * 0.8;
+        ctx.save();
+        ctx.globalAlpha = (1 - p) * 0.9;
+        ctx.strokeStyle = p < 0.5 ? "#ff6600" : "#ff9900";
+        ctx.lineWidth = 3;
+        ctx.shadowColor = "#ff6600";
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.arc(ast.x + ast.tamanho/2, ast.y + ast.tamanho/2, raioExp, 0, Math.PI*2);
+        ctx.stroke();
+        ctx.restore();
+
+        // partículas de faísca
+        if (p < 0.5 && Math.random() < 0.4) {
+            for (let k = 0; k < 2; k++) {
+                particulas.push(new Particula(
+                    ast.x + ast.tamanho/2 + (Math.random()-0.5)*ast.tamanho*0.6,
+                    ast.y + ast.tamanho/2 + (Math.random()-0.5)*ast.tamanho*0.6
+                ));
+            }
+        }
+    });
+}
 
 // Classe de partícula especial para morte cinematográfica
 class ParticulaMorte {
@@ -701,46 +944,11 @@ function desenharTransicaoMorte() {
 
 function atualizarTransicaoSaida() {
     if (!TRANS_SAIDA.ativo) return;
-    TRANS_SAIDA.prog += TRANS_SAIDA.velocidade;
-    if (TRANS_SAIDA.prog >= 1) {
-        TRANS_SAIDA.ativo = false;
-        TRANS_SAIDA.prog = 0;
-        fadeGameover = 0;
-        estado = MENU;
-    }
+    // delegado ao sistema JAW — só controla o flag externo
 }
 
 function desenharTransicaoSaida() {
-    if (!TRANS_SAIDA.ativo) return;
-    const p = TRANS_SAIDA.prog;
-    const ease = p < 0.5 ? 2*p*p : -1+(4-2*p)*p;
-
-    // Fade escuro total → limpo
-    const alpha = p < 0.4 ? (p / 0.4) : 1 - ((p - 0.4) / 0.6);
-    ctx.save();
-    ctx.fillStyle = `rgba(0,0,0,${Math.min(1, alpha * 1.2)})`;
-    ctx.fillRect(0, 0, LARGURA, ALTURA);
-    ctx.restore();
-
-    // Linhas de scan (mesmo estilo da morte)
-    if (p < 0.5) {
-        ctx.save();
-        ctx.globalAlpha = (1 - p * 2) * 0.1;
-        for (let y = 0; y < ALTURA; y += 4) {
-            ctx.fillStyle = "rgba(0,0,0,1)";
-            ctx.fillRect(0, y, LARGURA, 2);
-        }
-        ctx.restore();
-    }
-
-    // Flash azul de "retorno" no meio da transição
-    if (p > 0.35 && p < 0.55) {
-        const f = 1 - Math.abs(p - 0.45) / 0.1;
-        ctx.save();
-        ctx.fillStyle = `rgba(0,191,255,${f * 0.18})`;
-        ctx.fillRect(0, 0, LARGURA, ALTURA);
-        ctx.restore();
-    }
+    // não faz nada — a mandíbula é desenhada pelo TRANS_JAW
 }
 
 let estado = MENU;
@@ -772,38 +980,41 @@ const FASE_BOSS = 10;
 let bossAtivo = false;
 let bossDestruido = false;
 const boss = {
-    x: 0, y: -320, tamanho: 300,
-    vel: 0.25,
-    vidaMax: 200, vida: 200,
+    x: 0, y: -450, tamanho: 420,
+    vel: 0.35,
+    vidaMax: 500, vida: 500,
     rotacao: 0,
     shake: 0,         // intensidade do tremor de câmera
     particulas: [],
     alertaAlpha: 0,   // fade-in do alerta
-    entrou: false     // já apareceu na tela
+    entrou: false,    // já apareceu na tela
+    meteorTimer: 0    // timer para lançar meteoros filhos
 };
 
 function resetarBoss() {
-    boss.x = LARGURA / 2 - 150;
-    boss.y = -320;
+    boss.x = LARGURA / 2 - 210;
+    boss.y = -450;
     boss.vida = boss.vidaMax;
     boss.rotacao = 0;
     boss.shake = 0;
     boss.particulas = [];
     boss.alertaAlpha = 0;
     boss.entrou = false;
+    boss.meteorTimer = 0;
     bossAtivo = false;
     bossDestruido = false;
 }
 
 function ativarBoss() {
     bossAtivo = true;
-    boss.x = LARGURA / 2 - 150;
-    boss.y = -320;
+    boss.x = LARGURA / 2 - 210;
+    boss.y = -450;
     boss.vida = boss.vidaMax;
     boss.rotacao = 0;
     boss.particulas = [];
     boss.alertaAlpha = 0;
     boss.entrou = false;
+    boss.meteorTimer = 0;
     // remove asteroides normais e para de gerar mais
     asteroides = [];
     Audio.tocarMusicaBoss();
@@ -814,12 +1025,12 @@ function atualizarBoss() {
 
     boss.rotacao += 0.004;
 
-    // avança até o meio da tela e para
-    const bossAlvoY = ALTURA / 2 - boss.tamanho / 2;
+    // avança até o terço superior da tela e para
+    const bossAlvoY = ALTURA * 0.05;
     if (boss.y < bossAlvoY) {
         boss.y += boss.vel;
     } else {
-        boss.y = bossAlvoY; // trava no centro
+        boss.y = bossAlvoY;
     }
     if (boss.y > -50) boss.entrou = true;
 
@@ -828,16 +1039,16 @@ function atualizarBoss() {
 
     // tremor de câmera proporcional ao dano sofrido
     const pctVida = boss.vida / boss.vidaMax;
-    boss.shake = (1 - pctVida) * 4 + (pctVida < 0.3 ? 3 * Math.sin(Date.now() / 40) : 0);
+    boss.shake = (1 - pctVida) * 6 + (pctVida < 0.3 ? 4 * Math.sin(Date.now() / 40) : 0);
 
     // partículas de fissura quando abaixo de 50% vida
-    if (pctVida < 0.5 && Math.random() < 0.15) {
+    if (pctVida < 0.5 && Math.random() < 0.2) {
         boss.particulas.push({
             x: boss.x + Math.random() * boss.tamanho,
             y: boss.y + Math.random() * boss.tamanho,
-            vx: (Math.random() - 0.5) * 4,
-            vy: (Math.random() - 0.5) * 4,
-            r: Math.random() * 4 + 1,
+            vx: (Math.random() - 0.5) * 5,
+            vy: (Math.random() - 0.5) * 5,
+            r: Math.random() * 6 + 1,
             alpha: 1,
             cor: Math.random() < 0.5 ? "#ff4400" : "#ff9900"
         });
@@ -846,6 +1057,26 @@ function atualizarBoss() {
         p.x += p.vx; p.y += p.vy; p.alpha -= 0.025;
     });
     boss.particulas = boss.particulas.filter(p => p.alpha > 0);
+
+    // ── LANÇAMENTO DE METEOROS FILHOS ─────────────────────────────────────────
+    if (boss.entrou) {
+        boss.meteorTimer--;
+        // intervalo aumentado: de ~240 frames (cheio) a ~120 frames (crítico)
+        const intervalo = Math.floor(240 - (1 - pctVida) * 120);
+        if (boss.meteorTimer <= 0) {
+            boss.meteorTimer = intervalo + Math.floor(Math.random() * 40);
+            // lança no máximo 1 a 2 meteoros por vez (reduzido de 1-3)
+            const qtd = pctVida < 0.3 ? 2 : 1;
+            for (let m = 0; m < qtd; m++) {
+                const tam = Math.random() * 35 + 18;           // 18–53 px (menor)
+                const velY = Math.random() * 3 + 2;            // 2–5 (mais devagar)
+                const velX = (Math.random() - 0.5) * 2;        // deriva lateral reduzida
+                const spawnX = boss.x + Math.random() * boss.tamanho - tam / 2;
+                const spawnY = boss.y + boss.tamanho * 0.6;    // sai da barriga do boss
+                asteroides.push(new AsteroideBoss(spawnX, spawnY, tam, velX, velY));
+            }
+        }
+    }
 
     // colisão com tiros
     tiros.forEach((t, i) => {
@@ -857,7 +1088,7 @@ function atualizarBoss() {
             dinheiro += 2;
             Audio.somBossHit();
             // mini-explosão de impacto
-            explosoes.push(new Explosao(t.x, t.y + boss.y / 2));
+            explosoes.push(new Explosao(t.x, boss.y + boss.tamanho * 0.5));
             if (boss.vida <= 0) {
                 Audio.somBossDestruido();
                 destruirBoss();
@@ -878,28 +1109,290 @@ function atualizarBoss() {
     }
 }
 
+// ── BOSS DEATH CINEMATICS ───────────────────────────────────────────────────
+const BOSS_DEATH = {
+    ativo: false,
+    fase: 0,      // 0=tremor/desaceleração, 1=explosão central, 2=desintegração, 3=limpeza
+    timer: 0,
+    flashAlpha: 0,
+    shakeIntensidade: 0,
+    velAtual: 0,     // velocidade de rotação atual (desacelera)
+    particulasExplosao: [],
+    ondas: [],       // ondas de choque (anéis)
+    fragmentos: []   // fragmentos que voam após explosão
+};
+
+class FragmentoBoss {
+    constructor(cx, cy) {
+        const ang = Math.random() * Math.PI * 2;
+        const spd = Math.random() * 8 + 4;
+        this.x = cx + (Math.random() - 0.5) * 80;
+        this.y = cy + (Math.random() - 0.5) * 80;
+        this.vx = Math.cos(ang) * spd;
+        this.vy = Math.sin(ang) * spd;
+        this.raio = Math.random() * 22 + 8;
+        this.rotacao = Math.random() * Math.PI * 2;
+        this.velRot = (Math.random() - 0.5) * 0.2;
+        this.alpha = 1;
+        this.decay = Math.random() * 0.008 + 0.006;
+        this.cor = Math.random() < 0.4 ? "#ff4400" : Math.random() < 0.5 ? "#ff9900" : "#ff2200";
+    }
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += 0.12;
+        this.vx *= 0.985;
+        this.rotacao += this.velRot;
+        this.alpha -= this.decay;
+    }
+    desenhar() {
+        if (this.alpha <= 0) return;
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rotacao);
+        ctx.shadowColor = this.cor;
+        ctx.shadowBlur = 20;
+        ctx.drawImage(asteroideImg, -this.raio, -this.raio, this.raio * 2, this.raio * 2);
+        ctx.restore();
+    }
+}
+
+class OndaChoque {
+    constructor(cx, cy, corInicio) {
+        this.cx = cx; this.cy = cy;
+        this.raio = 10;
+        this.velRaio = 8;
+        this.alpha = 1;
+        this.cor = corInicio || "#ff6600";
+        this.largura = 5;
+    }
+    update() {
+        this.raio += this.velRaio;
+        this.velRaio *= 0.96;
+        this.alpha -= 0.022;
+        this.largura = Math.max(1, this.largura - 0.08);
+    }
+    desenhar() {
+        if (this.alpha <= 0) return;
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.strokeStyle = this.cor;
+        ctx.lineWidth = this.largura;
+        ctx.shadowColor = this.cor;
+        ctx.shadowBlur = 25;
+        ctx.beginPath();
+        ctx.arc(this.cx, this.cy, this.raio, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+}
+
 function destruirBoss() {
     bossDestruido = true;
     bossAtivo = false;
+    boss.shake = 0;
     stats.asteroidesDestruidos += boss.vidaMax;
-    // explosões em cascata
-    for (let i = 0; i < 40; i++) {
-        setTimeout(() => {
-            explosoes.push(new Explosao(
-                boss.x + Math.random() * boss.tamanho,
-                boss.y + Math.random() * boss.tamanho
-            ));
-            for (let j = 0; j < 8; j++) {
-                particulas.push(new Particula(
-                    boss.x + Math.random() * boss.tamanho,
-                    boss.y + Math.random() * boss.tamanho
-                ));
-            }
-        }, i * 80);
-    }
-    // inicia cutscene após as explosões
-    setTimeout(() => iniciarCutscene(), 3500);
+
+    // Inicia sequência cinematográfica
+    BOSS_DEATH.ativo = true;
+    BOSS_DEATH.fase = 0;
+    BOSS_DEATH.timer = 0;
+    BOSS_DEATH.flashAlpha = 0;
+    BOSS_DEATH.shakeIntensidade = 14;
+    BOSS_DEATH.velAtual = boss.rotacao; // captura velocidade atual
+    BOSS_DEATH.particulasExplosao = [];
+    BOSS_DEATH.ondas = [];
+    BOSS_DEATH.fragmentos = [];
 }
+
+function atualizarBossDeathCinematics() {
+    if (!BOSS_DEATH.ativo) return;
+    BOSS_DEATH.timer++;
+    const cx = boss.x + boss.tamanho / 2;
+    const cy = boss.y + boss.tamanho / 2;
+
+    // FASE 0: tremor + desaceleração (0–80 frames)
+    if (BOSS_DEATH.fase === 0) {
+        const t = BOSS_DEATH.timer;
+        // desaceleração de rotação
+        boss.rotacao += BOSS_DEATH.velAtual * (1 - t / 80);
+
+        // tremor crescente, depois decrescente
+        const tremor = 18 * Math.sin(t * 0.7) * (1 - t / 80);
+        boss.x += (Math.random() - 0.5) * tremor;
+        boss.y += (Math.random() - 0.5) * tremor * 0.5;
+
+        // partículas de crepitação
+        if (t % 3 === 0) {
+            for (let k = 0; k < 4; k++) {
+                BOSS_DEATH.particulasExplosao.push({
+                    x: cx + (Math.random() - 0.5) * boss.tamanho * 0.8,
+                    y: cy + (Math.random() - 0.5) * boss.tamanho * 0.8,
+                    vx: (Math.random() - 0.5) * 5,
+                    vy: (Math.random() - 0.5) * 5 - 2,
+                    r: Math.random() * 7 + 2,
+                    alpha: 1,
+                    decay: 0.04 + Math.random() * 0.04,
+                    cor: Math.random() < 0.5 ? "#ff4400" : "#ff9900"
+                });
+            }
+        }
+
+        // mini ondas progressivas
+        if (t % 12 === 0) {
+            BOSS_DEATH.ondas.push(new OndaChoque(
+                cx + (Math.random() - 0.5) * 100,
+                cy + (Math.random() - 0.5) * 80,
+                t < 40 ? "#ff6600" : "#ffffff"
+            ));
+        }
+
+        if (t >= 80) {
+            BOSS_DEATH.fase = 1;
+            BOSS_DEATH.timer = 0;
+        }
+    }
+
+    // FASE 1: explosão central (0–35 frames) — FLASH + fragmentos + onda grande
+    else if (BOSS_DEATH.fase === 1) {
+        const t = BOSS_DEATH.timer;
+
+        if (t === 1) {
+            // Flash máximo
+            BOSS_DEATH.flashAlpha = 1.0;
+
+            // Onda de choque gigante
+            for (let w = 0; w < 4; w++) {
+                setTimeout(() => {
+                    BOSS_DEATH.ondas.push(new OndaChoque(cx, cy, w % 2 === 0 ? "#ffffff" : "#ff6600"));
+                    BOSS_DEATH.ondas[BOSS_DEATH.ondas.length - 1].velRaio = 14 - w * 2;
+                }, w * 80);
+            }
+
+            // Fragmentos voando
+            for (let f = 0; f < 28; f++) {
+                BOSS_DEATH.fragmentos.push(new FragmentoBoss(cx, cy));
+            }
+
+            // Burst de partículas
+            for (let k = 0; k < 120; k++) {
+                const ang = (k / 120) * Math.PI * 2;
+                const spd = Math.random() * 12 + 4;
+                BOSS_DEATH.particulasExplosao.push({
+                    x: cx, y: cy,
+                    vx: Math.cos(ang) * spd * (0.5 + Math.random() * 0.8),
+                    vy: Math.sin(ang) * spd * (0.5 + Math.random() * 0.8),
+                    r: Math.random() * 9 + 2,
+                    alpha: 1,
+                    decay: 0.012 + Math.random() * 0.015,
+                    cor: Math.random() < 0.3 ? "#ffffff" : Math.random() < 0.5 ? "#ff4400" : "#ff9900"
+                });
+            }
+
+            Audio.somExplosao(true);
+            Audio.somBossDestruido();
+        }
+
+        // Flash decai
+        BOSS_DEATH.flashAlpha = Math.max(0, BOSS_DEATH.flashAlpha - 0.035);
+
+        if (t >= 35) {
+            BOSS_DEATH.fase = 2;
+            BOSS_DEATH.timer = 0;
+            // inicia evaporação dos meteoros
+            iniciarBossCleanup();
+        }
+    }
+
+    // FASE 2: desintegração do boss + limpeza meteoros (0–90 frames)
+    else if (BOSS_DEATH.fase === 2) {
+        const t = BOSS_DEATH.timer;
+
+        // Continua emitindo partículas menores
+        if (t % 5 === 0) {
+            for (let k = 0; k < 6; k++) {
+                BOSS_DEATH.particulasExplosao.push({
+                    x: cx + (Math.random() - 0.5) * boss.tamanho,
+                    y: cy + (Math.random() - 0.5) * boss.tamanho,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4 - 1,
+                    r: Math.random() * 5 + 1,
+                    alpha: 1,
+                    decay: 0.025 + Math.random() * 0.02,
+                    cor: "#ff9900"
+                });
+            }
+        }
+
+        if (t >= 90) {
+            BOSS_DEATH.fase = 3;
+            BOSS_DEATH.timer = 0;
+        }
+    }
+
+    // FASE 3: pausa dramática e inicia cutscene
+    else if (BOSS_DEATH.fase === 3) {
+        if (BOSS_DEATH.timer >= 60) {
+            BOSS_DEATH.ativo = false;
+            iniciarCutscene();
+        }
+    }
+
+    // Atualiza partículas
+    BOSS_DEATH.particulasExplosao.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        p.vy += 0.1;
+        p.vx *= 0.97;
+        p.alpha -= p.decay;
+    });
+    BOSS_DEATH.particulasExplosao = BOSS_DEATH.particulasExplosao.filter(p => p.alpha > 0);
+
+    // Atualiza ondas
+    BOSS_DEATH.ondas.forEach(o => o.update());
+    BOSS_DEATH.ondas = BOSS_DEATH.ondas.filter(o => o.alpha > 0);
+
+    // Atualiza fragmentos
+    BOSS_DEATH.fragmentos.forEach(f => f.update());
+    BOSS_DEATH.fragmentos = BOSS_DEATH.fragmentos.filter(f => f.alpha > 0);
+}
+
+function desenharBossDeathCinematics() {
+    if (!BOSS_DEATH.ativo) return;
+
+    // Ondas de choque
+    BOSS_DEATH.ondas.forEach(o => o.desenhar());
+
+    // Fragmentos
+    BOSS_DEATH.fragmentos.forEach(f => f.desenhar());
+
+    // Partículas
+    BOSS_DEATH.particulasExplosao.forEach(p => {
+        if (p.alpha <= 0) return;
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.shadowColor = p.cor;
+        ctx.shadowBlur = 18;
+        ctx.fillStyle = p.cor;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // Flash de explosão
+    if (BOSS_DEATH.flashAlpha > 0) {
+        ctx.save();
+        ctx.globalAlpha = BOSS_DEATH.flashAlpha;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, LARGURA, ALTURA);
+        ctx.restore();
+    }
+
+    // Alpha de desintegração do boss (fases 2 e 3)
+    // O desenho do boss em bossDestruido já usa partículas residuais — o flash cobre a transição
+}
+
 
 function desenharBoss() {
     if (!bossAtivo && !bossDestruido) return;
@@ -1320,50 +1813,15 @@ function desenharCreditos() {
 
     // ── transição créditos → menu ──────────────────────────────────────────
     if(TRANS_CREDITOS.ativo){
-        TRANS_CREDITOS.prog += TRANS_CREDITOS.velocidade;
-
-        const p = TRANS_CREDITOS.prog;
-
-        // fade escuro total na primeira metade, depois abre no menu
-        const alpha = p < 0.45 ? p / 0.45 : 1 - ((p - 0.45) / 0.55);
+        // a mandíbula cuida da transição — apenas mostra indicador
+        const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 200);
         ctx.save();
-        ctx.fillStyle = `rgba(0,0,0,${Math.min(1, alpha * 1.15)})`;
-        ctx.fillRect(0, 0, LARGURA, ALTURA);
+        ctx.globalAlpha = pulse * 0.4;
+        ctx.font = "bold 13px Arial";
+        ctx.fillStyle = "#00bfff";
+        ctx.textAlign = "center";
+        ctx.fillText("carregando...", LARGURA/2, ALTURA - 22);
         ctx.restore();
-
-        // flash azul ciano no momento de "aterrissar" no menu (mesmo estilo TRANS_SAIDA)
-        if(p > 0.4 && p < 0.56){
-            const f = 1 - Math.abs(p - 0.48) / 0.08;
-            ctx.save();
-            ctx.fillStyle = `rgba(0,191,255,${f * 0.2})`;
-            ctx.fillRect(0, 0, LARGURA, ALTURA);
-            ctx.restore();
-        }
-
-        // linhas de scan sutis saindo
-        if(p < 0.45){
-            ctx.save();
-            ctx.globalAlpha = (1 - p / 0.45) * 0.09;
-            for(let sy = 0; sy < ALTURA; sy += 4){
-                ctx.fillStyle = "rgba(0,0,0,1)";
-                ctx.fillRect(0, sy, LARGURA, 2);
-            }
-            ctx.restore();
-        }
-
-        // quando chegou ao ponto de virada: troca de estado
-        if(TRANS_CREDITOS.prog >= 0.48 && !TRANS_CREDITOS._trocou){
-            TRANS_CREDITOS._trocou = true;
-            resetarJogo();
-            estado = MENU;
-            Audio.tocarMusicaMenu();
-        }
-
-        if(TRANS_CREDITOS.prog >= 1){
-            TRANS_CREDITOS.ativo = false;
-            TRANS_CREDITOS.prog = 0;
-            TRANS_CREDITOS._trocou = false;
-        }
     } else {
         // pulso no texto de ENTER quando idle
         const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 600);
@@ -1652,6 +2110,46 @@ class Asteroide{
     }
 }
 
+// METEORO FILHO DO BOSS
+class AsteroideBoss {
+    constructor(x, y, tamanho, velX, velY) {
+        this.x = x;
+        this.y = y;
+        this.tamanho = tamanho;
+        this.velX = velX;
+        this.velY = velY;
+        this.rotacao = Math.random() * Math.PI * 2;
+        this.velRot = (Math.random() - 0.5) * 0.08;
+        this._isBossChild = true;
+    }
+
+    resetar() {
+        this.x = Math.random() * (LARGURA - this.tamanho);
+        this.y = -this.tamanho - 10;
+        this.velX = (Math.random() - 0.5) * 3;
+        this.velY = Math.random() * 4 + 2.5;
+    }
+
+    mover() {
+        this.x += this.velX;
+        this.y += this.velY;
+        this.rotacao += this.velRot;
+        if (this.x < 0) { this.x = 0; this.velX = Math.abs(this.velX); }
+        if (this.x > LARGURA - this.tamanho) { this.x = LARGURA - this.tamanho; this.velX = -Math.abs(this.velX); }
+        if (this.y > ALTURA) { this.resetar(); }
+    }
+
+    desenhar() {
+        ctx.save();
+        ctx.translate(this.x + this.tamanho / 2, this.y + this.tamanho / 2);
+        ctx.rotate(this.rotacao);
+        ctx.shadowColor = "#ff4400";
+        ctx.shadowBlur = 12;
+        ctx.drawImage(asteroideImg, -this.tamanho / 2, -this.tamanho / 2, this.tamanho, this.tamanho);
+        ctx.restore();
+    }
+}
+
 // TIRO
 class Tiro{
 
@@ -1808,15 +2306,19 @@ document.addEventListener("keydown",(e)=>{
 
     if(estado === MENU){
 
-        if(e.key === "Enter"){
+        if(e.key === "Enter" && !TRANS_JAW.ativo){
             Audio.somEnterMenu();
-            resetarJogo();
-            estado = JOGO;
-            setTimeout(() => Audio.tocarMusicaJogo(), 200);
+            iniciarTransicaoJaw(() => {
+                resetarJogo();
+                estado = JOGO;
+                Audio.tocarMusicaJogo();
+            });
         }
 
-        if(e.key.toLowerCase() === "l"){
-            estado = LOJA;
+        if(e.key.toLowerCase() === "l" && !TRANS_JAW.ativo){
+            iniciarTransicaoJaw(() => {
+                estado = LOJA;
+            });
         }
     }
 
@@ -1868,23 +2370,35 @@ document.addEventListener("keydown",(e)=>{
         if(e.key === "7" && dinheiro >= 35){ nave.buffTurbo++;  dinheiro -= 35; Audio.somCompra(); }
         else if(e.key === "7"){ Audio.somSemDinheiro(); }
 
-        if(e.key === "Escape"){ estado = MENU; }
+        if(e.key === "Escape" && !TRANS_JAW.ativo){
+            iniciarTransicaoJaw(() => { estado = MENU; });
+        }
     }
 
     if(estado === GAMEOVER){
 
-        // apenas SHIFT retorna ao menu (com transição suave)
-        if(e.key === "Shift" && !TRANS_SAIDA.ativo){
-            TRANS_SAIDA.ativo = true;
-            TRANS_SAIDA.prog = 0;
-            Audio.tocarMusicaMenu();
+        // apenas SHIFT retorna ao menu (com transição mandíbula)
+        if(e.key === "Shift" && !TRANS_JAW.ativo && !TRANS_SAIDA.ativo){
+            TRANS_SAIDA.ativo = true; // flag de compatibilidade
+            iniciarTransicaoJaw(() => {
+                TRANS_SAIDA.ativo = false;
+                fadeGameover = 0;
+                estado = MENU;
+                Audio.tocarMusicaMenu();
+            });
         }
     }
 
     if(estado === CREDITOS){
-        if(e.key === "Enter" && !TRANS_CREDITOS.ativo){
-            TRANS_CREDITOS.ativo = true;
-            TRANS_CREDITOS.prog = 0;
+        if(e.key === "Enter" && !TRANS_JAW.ativo && !TRANS_CREDITOS.ativo){
+            TRANS_CREDITOS.ativo = true; // flag de compatibilidade
+            iniciarTransicaoJaw(() => {
+                TRANS_CREDITOS.ativo = false;
+                TRANS_CREDITOS._trocou = false;
+                resetarJogo();
+                estado = MENU;
+                Audio.tocarMusicaMenu();
+            });
         }
     }
 });
@@ -1905,6 +2419,33 @@ document.addEventListener("mousedown",(e)=>{
         }
     }
 });
+
+// Mobile: botão START na tela de menu
+const mobileStartBtn = document.getElementById("mobileStartBtn");
+if (mobileStartBtn) {
+    mobileStartBtn.addEventListener("click", () => {
+        if (estado === MENU && !TRANS_JAW.ativo) {
+            Audio.iniciar();
+            Audio.somEnterMenu();
+            iniciarTransicaoJaw(() => {
+                resetarJogo();
+                estado = JOGO;
+                Audio.tocarMusicaJogo();
+            });
+        }
+        if (estado === GAMEOVER && !TRANS_JAW.ativo && !TRANS_SAIDA.ativo) {
+            Audio.iniciar();
+            TRANS_SAIDA.ativo = true;
+            iniciarTransicaoJaw(() => {
+                TRANS_SAIDA.ativo = false;
+                fadeGameover = 0;
+                estado = MENU;
+                Audio.tocarMusicaMenu();
+            });
+        }
+    });
+}
+
 // BARRA VIDA
 function desenharVida(){
 
@@ -1965,9 +2506,16 @@ function loop(){
 
     ctx.clearRect(0,0,LARGURA,ALTURA);
 
-    // tremor de câmera do boss
-    const shakeX = bossAtivo ? (Math.random() - 0.5) * boss.shake * 2 : 0;
-    const shakeY = bossAtivo ? (Math.random() - 0.5) * boss.shake * 2 : 0;
+    // tremor de câmera do boss — inclui fase de morte cinemática
+    const bossDeathShake = (BOSS_DEATH.ativo && BOSS_DEATH.fase <= 1) ? BOSS_DEATH.shakeIntensidade : 0;
+    const shakeX = (bossAtivo && !bossDestruido) ? (Math.random() - 0.5) * boss.shake * 2 :
+                   bossDeathShake > 0 ? (Math.random() - 0.5) * bossDeathShake * 2 : 0;
+    const shakeY = (bossAtivo && !bossDestruido) ? (Math.random() - 0.5) * boss.shake * 2 :
+                   bossDeathShake > 0 ? (Math.random() - 0.5) * bossDeathShake * 2 : 0;
+    // decai a intensidade do shake de morte
+    if (BOSS_DEATH.ativo && BOSS_DEATH.fase === 0) BOSS_DEATH.shakeIntensidade *= 0.97;
+    if (BOSS_DEATH.ativo && BOSS_DEATH.fase === 1) BOSS_DEATH.shakeIntensidade = Math.min(BOSS_DEATH.shakeIntensidade + 8, 26);
+    if (BOSS_DEATH.ativo && BOSS_DEATH.fase >= 2) BOSS_DEATH.shakeIntensidade *= 0.90;
     if (shakeX !== 0 || shakeY !== 0) {
         ctx.save();
         ctx.translate(shakeX, shakeY);
@@ -2731,6 +3279,18 @@ function loop(){
             desenharBoss();
         }
 
+        // Boss death cinematics
+        if(BOSS_DEATH.ativo){
+            atualizarBossDeathCinematics();
+            desenharBossDeathCinematics();
+        }
+
+        // Animação de limpeza pós-boss (evaporação dos meteoros)
+        if(BOSS_CLEANUP.ativo){
+            atualizarBossCleanup();
+            desenharEvaporacaoMeteoros();
+        }
+
         // FASES
         if(!bossAtivo && !bossDestruido && pontuacao >= fase*200){
 
@@ -2886,6 +3446,10 @@ function loop(){
 
     // fecha o translate do camera shake
     if (shakeX !== 0 || shakeY !== 0) ctx.restore();
+
+    // ── Transição mandíbulas (sobre tudo, incluindo menu/gameover/créditos) ──
+    atualizarTransicaoJaw();
+    desenharTransicaoJaw();
 
     requestAnimationFrame(loop);
 }
